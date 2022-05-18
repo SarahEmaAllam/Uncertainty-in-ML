@@ -88,8 +88,8 @@ y_pred_down_1 = y_pred_mean - y_pred_std
 
 
 plt.scatter (range (len (x)), x, label="noisy data")
-plt.plot(y, label= "sinus", linewidth = 5)
-plt.plot(y_pred_mean, label = "predicted mean", linewidth = 5)
+plt.plot(y, label= "sinus", linewidth = 3)
+plt.plot(y_pred_mean, label = "predicted mean", linewidth = 3)
 plt.fill_between (range (num_samples), y_pred_mean-y_pred_std, y_pred_mean+y_pred_std, alpha=0.2, label="std")
 # plt.plot(y_pred_up_1, label = "one std up")
 # plt.plot(y_pred_down_1, label = "one std below")
