@@ -48,8 +48,10 @@ def train_standard_model(x_train, y_train, domain):
     train_model = Model(inp, mean)
     pred_model = Model(inp, [mean, var])
 
-    train_model.compile(loss=regression_gaussian_nll_loss(var), optimizer="adam")
-    train_model.fit(x_train, y_train, verbose=2, epochs=100)
+    opt = keras.optimizers.Adam (learning_rate=0.0001)
+
+    train_model.compile(loss=regression_gaussian_nll_loss(var), optimizer=opt)
+    train_model.fit(x_train, y_train, verbose=2, epochs=300)
 
     mean_pred, var_pred = pred_model.predict(domain)
     std_pred = np.sqrt(var_pred)
@@ -57,12 +59,14 @@ def train_standard_model(x_train, y_train, domain):
     return mean_pred, std_pred
 
 
-num_samples = 1000
+num_samples = 100
 
 sample = np.linspace(-5, 5, num=num_samples)
 print("Input array : \n", sample)
 
-x = 2 * np.sin(sample) + np.random.normal(loc = 0.0, scale = 1.0, size = num_samples)
+scales = np.linspace (0.1, 1.0, num=num_samples)
+
+x = 2 * np.sin(sample) + np.random.normal(loc = 0.0, scale = scales, size = num_samples)
 print("\nSine values : \n", x)
 
 y = 2 * np.sin(sample)
@@ -72,25 +76,24 @@ print("shape of y", y.shape)
 
 data_train,data_test,labels_train,labels_test = train_test_split(x,y, test_size = 0.20)
 
-print(y)
 print(f'μ={y.mean()}')
 print(f'σ={y.std()}')
 
-predicted_mean, predicted_var=train_standard_model(data_train, labels_train, y)
+predicted_mean, predicted_std=train_standard_model(data_train, labels_train, y)
 
-print("pred mean", predicted_mean)
-print("pred var", predicted_var)
+# print("pred mean", predicted_mean)
+# print("pred std", predicted_std)
 
 y_pred_mean = predicted_mean.reshape((-1,))
-y_pred_std = predicted_var.reshape((-1,))
+y_pred_std = predicted_std.reshape((-1,))
 y_pred_up_1 = y_pred_mean + y_pred_std
 y_pred_down_1 = y_pred_mean - y_pred_std
 
 
-plt.scatter (range (len (x)), x, label="noisy data")
-plt.plot(y, label= "sinus", linewidth = 3)
-plt.plot(y_pred_mean, label = "predicted mean", linewidth = 3)
-plt.fill_between (range (num_samples), y_pred_mean-y_pred_std, y_pred_mean+y_pred_std, alpha=0.2, label="std")
+plt.scatter (range (len (x)), x, label="Noisy Data Points", color='green')
+plt.plot(y, label= "Sine", linewidth = 3)
+plt.plot(y_pred_mean, label = "Predicted mean", linewidth = 3)
+plt.fill_between (range (num_samples), y_pred_mean-y_pred_std, y_pred_mean+y_pred_std, alpha=0.2, label="Standard Deviation", color='orange')
 # plt.plot(y_pred_up_1, label = "one std up")
 # plt.plot(y_pred_down_1, label = "one std below")
 plt.legend()
