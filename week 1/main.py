@@ -58,18 +58,19 @@ def train_standard_model(x_train, y_train, domain):
 
     return mean_pred, std_pred
 
+A = 3
 
-num_samples = 100
+num_samples = 500
 
 sample = np.linspace(-5, 5, num=num_samples)
 print("Input array : \n", sample)
 
-scales = np.linspace (0.1, 1.0, num=num_samples)
+scales = np.linspace (0.1, 1.5, num=num_samples)
 
-x = 2 * np.sin(sample) + np.random.normal(loc = 0.0, scale = scales, size = num_samples)
+x = A * np.sin(sample) + np.random.normal(loc = 0.0, scale = 1, size = num_samples)
 print("\nSine values : \n", x)
 
-y = 2 * np.sin(sample)
+y = A * np.sin(sample)
 y = y.reshape((-1, 1))
 # X = np.random.normal(loc = 0.0, scale = 2.0, size = 1000)
 print("shape of y", y.shape)
