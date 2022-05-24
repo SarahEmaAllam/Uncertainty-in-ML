@@ -51,6 +51,7 @@ def train_standard_model(x_train, y_train, domain):
     opt = keras.optimizers.Adam (learning_rate=0.0001)
 
     train_model.compile(loss=regression_gaussian_nll_loss(var), optimizer=opt)
+    pred_model.compile (loss=regression_gaussian_nll_loss (var), optimizer=opt)
     train_model.fit(x_train, y_train, verbose=2, epochs=300)
 
     mean_pred, var_pred = pred_model.predict(domain)
@@ -60,22 +61,22 @@ def train_standard_model(x_train, y_train, domain):
 
 A = 3
 
-num_samples = 500
+num_samples = 10000
 
 sample = np.linspace(-5, 5, num=num_samples)
 print("Input array : \n", sample)
 
-scales = np.linspace (0.1, 1.5, num=num_samples)
+noise_sigma = 0.5
 
-x = A * np.sin(sample) + np.random.normal(loc = 0.0, scale = 1, size = num_samples)
-print("\nSine values : \n", x)
+x = A * np.sin(sample) + np.random.normal(loc = 0.0, scale = noise_sigma, size = num_samples)
+# print("\nSine values : \n", x)
 
 y = A * np.sin(sample)
 y = y.reshape((-1, 1))
 # X = np.random.normal(loc = 0.0, scale = 2.0, size = 1000)
 print("shape of y", y.shape)
 
-data_train,data_test,labels_train,labels_test = train_test_split(x,y, test_size = 0.20)
+data_train,data_test,labels_train,labels_test = train_test_split(x,y, test_size = 0.40)
 
 print(f'μ={y.mean()}')
 print(f'σ={y.std()}')
@@ -90,6 +91,8 @@ y_pred_std = predicted_std.reshape((-1,))
 y_pred_up_1 = y_pred_mean + y_pred_std
 y_pred_down_1 = y_pred_mean - y_pred_std
 
+
+print (f'average standard deviation: {np.mean(y_pred_std)}')
 
 plt.scatter (range (len (x)), x, label="Noisy Data Points", color='green')
 plt.plot(y, label= "Sine", linewidth = 3)
