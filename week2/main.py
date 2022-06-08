@@ -43,38 +43,48 @@ def regression_gaussian_nll_loss(variance_tensor, epsilon=1e-8, variance_logits=
 def train_standard_model(x_train, y_train, domain):
     prob = 0.1
     inp = Input(shape=(1,))
-    x = DropConnectDense(32, activation="relu", use_learning_phase=True, prob= prob)(inp)
-    x = DropConnectDense(32, activation="relu", use_learning_phase=True, prob = prob)(x)
-    mean = DropConnectDense(1, activation="linear", use_learning_phase=True)(x)
-    var = DropConnectDense(1, activation="softplus", use_learning_phase=True)(x)
+    x = Dense(64, activation="relu")(inp)
+    x = StochasticDropout (prob) (x)
+    x = Dense(64, activation="relu")(x)
+    x = StochasticDropout (prob) (x)
+    mean = Dense(1, activation="linear")(x)
+    var = Dense(1, activation="softplus")(x)
 
     train_model = Model(inp, mean)
     pred_model = Model(inp, [mean, var])
 
-    opt = keras.optimizers.Adam (learning_rate=0.0001)
+    opt = keras.optimizers.Adam (learning_rate=0.01)
 
     train_model.compile(loss=regression_gaussian_nll_loss(var), optimizer=opt)
     pred_model.compile (loss=regression_gaussian_nll_loss (var), optimizer=opt)
-    train_model.fit(x_train, y_train, verbose=2, epochs=300)
+    train_model.fit(x_train, y_train, verbose=2, epochs=600)
+
+    mean_preds = []
+    std_preds = []
+    var_preds = []
 
     for i in range (10):
-        mean_preds [i], var_pred [i] = pred_model.predict(domain)
-        std_pred [i] = np.sqrt(var_pred)
+        pred = train_model.predict (domain)
+        mean_preds.append (pred)
+
 
     mean_pred = np.mean (mean_preds, axis = 0)
-    std_pred = np.mean (std_preds, axis = 0)
+    std_pred = np.std (mean_preds, axis = 0)
+    ale = np.mean (var_preds, axis = 0)
+    epi = np.var (mean_preds, axis = 0)
 
-    return mean_pred, std_pred
+    return mean_pred, std_pred, ale, epi
 
-A = 3
+A = 5
 
 num_samples = 500
 
 sample = np.linspace(-5, 5, num=num_samples)
+
 print("Input array : \n", sample)
 
 noise_sigma = 0.5
-noise_fn = lambda x : abs (2*x)
+noise_fn = lambda x : abs (np.log (x))
 
 x = A * np.sin(sample) + np.random.normal(loc = 0.0, scale = noise_fn (sample), size = num_samples)
 # print("\nSine values : \n", x)
@@ -89,13 +99,15 @@ data_train,data_test,labels_train,labels_test = train_test_split(x,y, test_size 
 print(f'μ={y.mean()}')
 print(f'σ={y.std()}')
 
-predicted_mean, predicted_std=train_standard_model(data_train, labels_train, y)
+predicted_mean, predicted_uncertainty, ale, epi =train_standard_model(data_train, labels_train, y)
 
 # print("pred mean", predicted_mean)
 # print("pred std", predicted_std)
 
 y_pred_mean = predicted_mean.reshape((-1,))
-y_pred_std = predicted_std.reshape((-1,))
+y_pred_std = predicted_uncertainty.reshape((-1,))
+y_ale = ale.reshape ((-1))
+y_epi = ale.reshape ((-1))
 y_pred_up_1 = y_pred_mean + y_pred_std
 y_pred_down_1 = y_pred_mean - y_pred_std
 
@@ -106,6 +118,25 @@ plt.scatter (range (len (x)), x, label="Noisy Data Points", color='green')
 plt.plot(y, label= "Sine", linewidth = 3)
 plt.plot(y_pred_mean, label = "Predicted mean", linewidth = 3)
 plt.fill_between (range (num_samples), y_pred_mean-y_pred_std, y_pred_mean+y_pred_std, alpha=0.2, label="Standard Deviation", color='orange')
+# plt.plot(y_pred_up_1, label = "one std up")
+# plt.plot(y_pred_down_1, label = "one std below")
+plt.legend()
+plt.show ()
+
+plt.scatter (range (len (x)), x, label="Noisy Data Points", color='green')
+plt.plot(y, label= "Sine", linewidth = 3)
+plt.plot(y_pred_mean, label = "Predicted mean", linewidth = 3)
+plt.fill_between (range (num_samples), y_pred_mean-y_ale, y_pred_mean+y_ale, alpha=0.2, label="Aleatoric Uncertainty", color='orange')
+# plt.plot(y_pred_up_1, label = "one std up")
+# plt.plot(y_pred_down_1, label = "one std below")
+plt.legend()
+plt.show ()
+
+
+plt.scatter (range (len (x)), x, label="Noisy Data Points", color='green')
+plt.plot(y, label= "Sine", linewidth = 3)
+plt.plot(y_pred_mean, label = "Predicted mean", linewidth = 3)
+plt.fill_between (range (num_samples), y_pred_mean-y_epi, y_pred_mean+y_epi, alpha=0.2, label="Epistemic Uncertainty", color='orange')
 # plt.plot(y_pred_up_1, label = "one std up")
 # plt.plot(y_pred_down_1, label = "one std below")
 plt.legend()
