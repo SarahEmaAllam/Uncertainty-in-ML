@@ -4,19 +4,14 @@
 from keras_uncertainty.losses import regression_gaussian_nll_loss, regression_gaussian_beta_nll_loss
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import bernoulli, norm, poisson
-from scipy import stats
-from scipy.stats import kurtosis, skew
-import seaborn as sns
-import math
+
 from keras.layers import Dense, Input, Flatten
 
 import tensorflow as tf
 
 from tensorflow import keras
 from tensorflow.keras.models import Model
-from tensorflow.keras import layers
-from sklearn.model_selection import train_test_split
+
 
 import keras_uncertainty.backend as K
 from keras_uncertainty.models import TwoHeadStochasticRegressor, StochasticRegressor
@@ -40,8 +35,15 @@ def regression_gaussian_nll_loss(variance_tensor, epsilon=1e-8, variance_logits=
 
     return nll
 
-
 def train_standard_model(x_train, y_train):
+    """
+
+    :param x_train:
+    :param y_train:
+    :return:
+    """
+
+
     prob = 0.05
     inp = Input(shape=(1,))
     x = DropConnectDense(32, activation="relu", prob=prob)(inp)
@@ -60,25 +62,24 @@ def train_standard_model(x_train, y_train):
     return train_model, pred_model
 
 def evaluate_model(domain, pred_model):
-
+    # model taken from given repository: returns the mean and std (two heads)
     model = TwoHeadStochasticRegressor(pred_model)
 
+    # predict on the same model 20 times and disentangle the uncertainties
+    # where aleatoric uncertainty = mean of the variances from each predicted model (previously trained)
+    # and epistemic uncertainty = variance of the means from each predicted model (previously trained)
     mean_pred, epi_std, ale_std = model.predict(domain, 20, disentangle_uncertainty=True)
 
     return mean_pred, epi_std, ale_std
 
-A = 5
-
-num_samples = 100
-test_samples = 140
-
 # generating big and small datasets
-X = np.clip(np.random.normal(0.0, 1.0, 1000).reshape(-1,1), -3, 3)
+X = np.clip(np.random.normal(0.0, 1.0, 100).reshape(-1,1), -3, 3)
 
 # let us generate a grid to check how models fit the data
-x_grid = np.linspace(-5, 5, 1000).reshape(-1,1)
+x_grid = np.linspace(-5, 5, 100).reshape(-1,1)
 
 # defining the function - noisy
+# function adapted from : https://www.kaggle.com/code/gdmarmerola/risk-and-uncertainty-in-deep-learning/notebook
 noise = lambda x: (x**2)/10
 target_toy = lambda x: (x + 0.3*np.sin(2*np.pi*(x + noise(x)) +
                         0.3*np.sin(4*np.pi*(x + noise(x)) +
@@ -92,102 +93,56 @@ y = np.array([target_toy(e) for e in X])
 y_noiseless = np.array([target_toy_noiseless(e) for e in x_grid])
 
 
-# let us check the toy data
+# check the toy data
 plt.figure(figsize=[12,6], dpi=200)
 
-# first plot
-plt.plot(X, y, 'kx', label='Toy data', alpha=0.5, markersize=5)
-#plt.plot(x_grid, y_noiseless, 'r--')
-plt.title('Data for estimating uncertainty and risk')
-plt.xlabel('$x$'); plt.ylabel('$y$')
-plt.legend();
-plt.show()
-
-# X = np.random.normal(loc = 0.0, scale = 2.0, size = 1000)
-print("shape of y", y.shape)
-# domain_samples = A * np.sin(np.linspace (-7, 7, num= test_samples))
-# domain = domain_samples + np.random.normal(loc = 0.0, scale = noise_fn (domain_samples), size = test_samples)
-# domain = domain.reshape((-1, 1))
-
-print(f'μ={y.mean()}')
-print(f'σ={y.std()}')
-# # fitting the model
-# regular_nn.fit(X, y, batch_size=16, epochs=500, verbose=0)
+# return trained model and predictive model
 train_model, pred_model =train_standard_model(X, y)
-predicted_mean, epi, ale = evaluate_model(X, pred_model)
 
+# predict the model on data and return epistemic and aleatoric noise
+predicted_mean, epi, ale = evaluate_model(x_grid, pred_model)
 
-print("pred mean", predicted_mean)
-print("epi", epi)
-print("ale", ale)
-
-print("average ale", np.mean(ale))
-
+# reshape the vectors
 y_pred_mean = predicted_mean.reshape((-1,))
-
-
 y_epi = epi.reshape((-1,))
 y_ale =ale.reshape((-1,))
 
+# predictive uncertainty is the sum of epistemic and aleatoric
 y_pred_std = y_epi + y_ale
 
-
+#  calculate lower and upper bounds
 y_pred_up_1 = y_pred_mean + y_pred_std
 y_pred_down_1 = y_pred_mean - y_pred_std
 
 
-# let us check the toy data
 plt.figure(figsize=[12,6], dpi=200)
 
-# first plot
+# plot aleatoric uncertainty with the predicted mean
 plt.plot(X, y, 'kx', label='Toy data', alpha=0.5, markersize=5)
 plt.plot(x_grid, predicted_mean, label='neural net fit', color='tomato', alpha=0.8)
-plt.errorbar(x_grid, y_pred_mean, xerr=y_ale)
-plt.title('Neural network fit for median expected value')
+plt.fill_between (x_grid.reshape(1,-1)[0], y_pred_mean-y_ale, y_pred_mean+y_ale, alpha=0.2, label="Aleatoric Uncertainty", color='orange')
+plt.title('Neural network fit for median expected value with aleatoric uncertainty')
 plt.xlabel('$x$'); plt.ylabel('$y$')
-# plt.xlim(-3.5,3.5); plt.ylim(-5, 3)
-plt.legend();
+plt.xlim(-3.5,3.5); plt.ylim(-5, 3)
+plt.legend()
 plt.show()
 
-# print (f'average standard deviation: {np.mean(y_pred_std)}')
-# # plt.scatter(range (len (X)), X, label="Noisy Data Points", color='green')
-# # plt.plot(y, label= "Sine", linewidth = 3)
-# plt.plot(X, y, 'kx', label='Toy data', alpha=0.5, markersize=5)
-# #plt.plot(x_grid, y_noiseless, 'r--')
-# plt.title('Data for estimating uncertainty and risk')
-# plt.xlabel('$x$'); plt.ylabel('$y$')
-# plt.plot(y_pred_mean, label = "Predicted mean", linewidth = 3)
-# plt.errorbar(x_grid, y_pred_mean, xerr=y_ale)
-# plt.fill_between (range (len(y_pred_mean)), y_pred_mean-y_ale, y_pred_mean+y_ale, alpha=0.2, label="Aleatoric Uncertainty", color='orange')
-# plt.plot(y_pred_up_1, label = "one std up")
-# plt.plot(y_pred_down_1, label = "one std below")
+# plot epistemic uncertainty with the predicted mean
+plt.plot(X, y, 'kx', label='Toy data', alpha=0.5, markersize=5)
+plt.plot(x_grid, predicted_mean, label='neural net fit', color='tomato', alpha=0.8)
+plt.fill_between (x_grid.reshape(1,-1)[0], y_pred_mean-y_epi, y_pred_mean+y_epi, alpha=0.2, label="Epistemic Uncertainty", color='orange')
+plt.title('Neural network fit for median expected value with epistemic uncertainty')
+plt.xlabel('$x$'); plt.ylabel('$y$')
+plt.xlim(-3.5,3.5); plt.ylim(-5, 3)
 plt.legend()
-plt.show ()
-#
-# plt.scatter (range (len (x)), x, label="Noisy Data Points", color='green')
-# plt.plot(y, label= "Sine", linewidth = 3)
-# plt.plot(y_pred_mean, label = "Predicted mean", linewidth = 3)
-# plt.fill_between (range (num_samples), y_pred_mean-y_pred_std, y_pred_mean+y_pred_std, alpha=0.2, label="Standard Deviation", color='orange')
-# # plt.plot(y_pred_up_1, label = "one std up")
-# # plt.plot(y_pred_down_1, label = "one std below")
-# plt.legend()
-# plt.show ()
-#
-# plt.scatter (range (len (x)), x, label="Noisy Data Points", color='green')
-# plt.plot(y, label= "Sine", linewidth = 3)
-# plt.plot(y_pred_mean, label = "Predicted mean", linewidth = 3)
-# plt.fill_between (range (num_samples), y_pred_mean-y_ale, y_pred_mean+y_ale, alpha=0.2, label="Aleatoric Uncertainty", color='orange')
-# # plt.plot(y_pred_up_1, label = "one std up")
-# # plt.plot(y_pred_down_1, label = "one std below")
-# plt.legend()
-# plt.show ()
-#
-#
-# plt.scatter (range (len (x)), x, label="Noisy Data Points", color='green')
-# plt.plot(y, label= "Sine", linewidth = 3)
-# plt.plot(y_pred_mean, label = "Predicted mean", linewidth = 3)
-# plt.fill_between (range (num_samples), y_pred_mean-y_epi, y_pred_mean+y_epi, alpha=0.2, label="Epistemic Uncertainty", color='orange')
-# # plt.plot(y_pred_up_1, label = "one std up")
-# # plt.plot(y_pred_down_1, label = "one std below")
-# plt.legend()
-# plt.show ()
+plt.show()
+
+# plot predictive uncertainty with the predicted mean
+plt.plot(X, y, 'kx', label='Toy data', alpha=0.5, markersize=5)
+plt.plot(x_grid, predicted_mean, label='neural net fit', color='tomato', alpha=0.8)
+plt.fill_between (x_grid.reshape(1,-1)[0], y_pred_mean-y_pred_std , y_pred_mean+y_pred_std , alpha=0.2, label="Predictive Uncertainty", color='orange')
+plt.title('Neural network fit for median expected value with predictive uncertainty')
+plt.xlabel('$x$'); plt.ylabel('$y$')
+plt.xlim(-3.5,3.5); plt.ylim(-5, 3)
+plt.legend()
+plt.show()
